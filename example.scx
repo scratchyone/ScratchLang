@@ -1,5 +1,8 @@
 function main3() {
     var x = "test";
+    var y = "test";
+    var z = "test";
+    var a = "test";
     say("hello world!");
 }
 function main2() {

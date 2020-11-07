@@ -29,6 +29,7 @@ export class Generator {
     // Start parsing
     const functions = parse.filter((f) => f.type === 'functionDef');
     if (!stage) throw new Error('Failed to create stage, something went wrong');
+    const stack = stage.addList('stack', []);
     if (!mainSprite)
       throw new Error('Failed to create sprite, something went wrong');
     const broadcasts = new Map();
@@ -67,6 +68,8 @@ export class Generator {
             `Failed to create head block for function ${sfunction.name}`
           );
         let lastBlock = headBlock;
+        let varMappings = new Map();
+        let stackShift = 0;
         for (const child of sfunction.codeLines) {
           let currBlock;
           if (child.type === 'functionCall') {
@@ -88,9 +91,23 @@ export class Generator {
                 )
               );
             }
+          } else if (child.type === 'variableDef') {
+            currBlock = lastBlock.addChild(
+              new Blocks.InsertIntoList(stack, 1, child.value)
+            );
+            varMappings.set(child.name, stackShift);
+            stackShift++;
           }
           mainSprite.addBlock(lastBlock);
           if (currBlock) lastBlock = currBlock;
+        }
+        while (stackShift > 0) {
+          stackShift--;
+          const currBlock = lastBlock.addChild(
+            new Blocks.DeleteFromList(stack, 1)
+          );
+          mainSprite.addBlock(lastBlock);
+          lastBlock = currBlock;
         }
         mainSprite.addBlock(lastBlock);
       }

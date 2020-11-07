@@ -39,28 +39,34 @@ export class Target {
   variables: Array<Variable>;
   blocks: Array<Block>;
   broadcasts: Array<TargetBroadcast>;
+  lists: Array<List>;
   constructor({
     isStage,
     name,
     variables,
     blocks,
     broadcasts,
+    lists,
   }: {
     isStage: boolean;
     name: string;
     variables: Array<Variable>;
     blocks: Array<Block>;
     broadcasts: Array<TargetBroadcast>;
+    lists: Array<List>;
   }) {
     this.isStage = isStage;
     this.name = name;
     this.variables = variables;
     this.blocks = blocks;
     this.broadcasts = broadcasts;
+    this.lists = lists;
   }
   json() {
     const vars: { [key: string]: [string, string | number] } = {};
     for (const svar of this.variables) vars[svar.id] = [svar.name, svar.value];
+    const lists: { [key: string]: [string, Array<string | number>] } = {};
+    for (const list of this.lists) lists[list.id] = [list.name, list.value];
     const blocks: { [key: string]: unknown } = {};
     for (const block of this.blocks) blocks[block.id] = block.json();
     const broadcasts: { [key: string]: unknown } = {};
@@ -70,7 +76,7 @@ export class Target {
       isStage: this.isStage,
       name: this.name,
       variables: vars,
-      lists: {},
+      lists: lists,
       broadcasts: broadcasts,
       blocks: blocks,
       comments: {
@@ -124,6 +130,7 @@ export class Target {
       variables: [],
       blocks: [],
       broadcasts: [],
+      lists: [],
     });
   }
   static emptyCat() {
@@ -133,10 +140,16 @@ export class Target {
       variables: [],
       blocks: [],
       broadcasts: [],
+      lists: [],
     });
   }
   addVariable(name: string, value: string | number) {
     this.variables.push(new Variable(name, value, uuidv4()));
+  }
+  addList(name: string, value: Array<string | number>): List {
+    const list = new List(name, value, uuidv4());
+    this.lists.push(list);
+    return list;
   }
   addBlock(block: Block) {
     this.blocks.push(block);
@@ -152,6 +165,16 @@ export class Variable {
   name: string;
   value: string | number;
   constructor(name: string, value: string | number, id: string) {
+    this.id = id;
+    this.name = name;
+    this.value = value;
+  }
+}
+export class List {
+  id: string;
+  name: string;
+  value: Array<string | number>;
+  constructor(name: string, value: Array<string | number>, id: string) {
     this.id = id;
     this.name = name;
     this.value = value;
@@ -176,7 +199,10 @@ type BlockOpCode =
   | 'looks_nextbackdrop'
   | 'event_whenbroadcastreceived'
   | 'event_broadcastandwait'
-  | 'looks_say';
+  | 'looks_say'
+  | 'data_insertatlist'
+  | 'data_itemoflist'
+  | 'data_deleteoflist';
 export class Block {
   id: string;
   opcode: BlockOpCode;
@@ -264,12 +290,12 @@ export class Field {
 export class Input {
   name: string;
   shadow: 'shadow' | 'none' | 'obscured';
-  type: 'broadcast' | 'text';
+  type: 'broadcast' | 'text' | 'int';
   arr: Array<unknown>;
   constructor(
     name: string,
     shadow: 'shadow' | 'none' | 'obscured',
-    type: 'broadcast' | 'text',
+    type: 'broadcast' | 'text' | 'int',
     arr: Array<unknown>
   ) {
     this.name = name;
@@ -285,6 +311,7 @@ export class Input {
     let type;
     if (this.type === 'broadcast') type = 11;
     if (this.type === 'text') type = 10;
+    if (this.type === 'int') type = 7;
     return [shadow, [type, ...this.arr]];
   }
 }
