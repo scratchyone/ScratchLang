@@ -1,6 +1,8 @@
 import nearley from 'nearley';
 const grammar = require('./grammar.js');
 import arg from 'arg';
+import { readFileSync } from 'fs';
+const util = require('util');
 
 // Parse command arguments
 const args = arg({
@@ -13,6 +15,10 @@ if (args['--help']) {
   process.exit(0);
 } else if (args['--compile']) {
   console.log(`Compiling ${args['--compile']}`);
+  const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
+  const fileData = readFileSync(args['--compile']).toString();
+  parser.feed(fileData);
+  console.log(util.inspect(parser.results, { showHidden: false, depth: null }));
 } else {
   console.error('No valid options given');
   process.exit(1);
