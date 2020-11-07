@@ -12,4 +12,6 @@ interface FunctionDef {
 interface FunctionCall {
   type: 'functionCall';
   name: string;
+  args: Array<PObject>;
 }
+export type PObject = string | number;

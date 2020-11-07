@@ -4,6 +4,12 @@ import { v4 as uuidv4 } from 'uuid';
 import util from 'util';
 import log from 'loglevel';
 import * as SB3 from './SB3';
+import * as Blocks from './blocks';
+
+const nativeFunctions = {
+  say: (args: Array<any>) => new Blocks.Say(args[0]),
+};
+
 export class Generator {
   data: AdmZip;
   constructor(data: AdmZip) {
@@ -17,10 +23,14 @@ export class Generator {
     const data = new Generator(new AdmZip());
     // Create project.json
     const pjson = SB3.SB3.empty();
+    pjson.addSprite(SB3.Target.emptyCat());
     const stage = pjson.targets.find((n) => n.name === 'Stage');
+    const mainSprite = pjson.targets.find((n) => n.name === 'Sprite');
     // Start parsing
     const functions = parse.filter((f) => f.type === 'functionDef');
     if (!stage) throw new Error('Failed to create stage, something went wrong');
+    if (!mainSprite)
+      throw new Error('Failed to create sprite, something went wrong');
     const broadcasts = new Map();
     let functionsSoFar = 0;
     const staggerAmount = 400;
@@ -57,27 +67,32 @@ export class Generator {
             `Failed to create head block for function ${sfunction.name}`
           );
         let lastBlock = headBlock;
-        for (const child of sfunction.codeLines)
+        for (const child of sfunction.codeLines) {
+          let currBlock;
           if (child.type === 'functionCall') {
-            const broadcastId = broadcasts.get(child.name);
-            if (!broadcastId)
-              throw new Error(
-                `Tried to call function ${child.name} but it doesn't exist`
-              );
-            const currBlock = lastBlock.createChild(
-              'event_broadcastandwait',
-              [],
-              [
-                new SB3.Input('BROADCAST_INPUT', 'shadow', 'broadcast', [
-                  `function__${child.name}`,
-                  broadcastId as string,
-                ]),
-              ]
+            const nativeFunction = Object.entries(nativeFunctions).find(
+              (n) => n[0] === child.name
             );
-            stage.addBlock(lastBlock);
-            lastBlock = currBlock;
+            if (nativeFunction) {
+              currBlock = lastBlock.addChild(nativeFunction[1](child.args));
+            } else {
+              const broadcastId = broadcasts.get(child.name);
+              if (!broadcastId)
+                throw new Error(
+                  `Tried to call function ${child.name} but it doesn't exist`
+                );
+              currBlock = lastBlock.addChild(
+                new Blocks.SendBroadcast(
+                  broadcastId as string,
+                  `function__${child.name}`
+                )
+              );
+            }
           }
-        stage.addBlock(lastBlock);
+          mainSprite.addBlock(lastBlock);
+          if (currBlock) lastBlock = currBlock;
+        }
+        mainSprite.addBlock(lastBlock);
       }
       functionsSoFar++;
     }

@@ -56,6 +56,7 @@ if (args['--help']) {
     util.inspect(results, { showHidden: false, depth: null, colors: true })
   );
   Generator.createFromParse(results).exportToFile(args['--output']);
+  log.info('Finished compiling');
 } else {
   log.error('No valid options given');
   process.exit(1);

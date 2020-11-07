@@ -18,6 +18,9 @@ export class SB3 {
       extensions: [],
     };
   }
+  addSprite(sprite: Target) {
+    this.targets.push(sprite);
+  }
 }
 export class Meta {
   constructor() {}
@@ -94,17 +97,39 @@ export class Target {
       ],
       sounds: [],
       volume: 100,
-      layerOrder: 0,
-      tempo: 60,
-      videoTransparency: 50,
-      videoState: 'on',
-      textToSpeechLanguage: null,
+      ...(this.isStage
+        ? {
+            tempo: 60,
+            videoTransparency: 50,
+            videoState: 'on',
+            textToSpeechLanguage: null,
+            layerOrder: 0,
+          }
+        : {
+            visible: true,
+            x: 14,
+            y: -27,
+            size: 100,
+            direction: 90,
+            draggable: false,
+            rotationStyle: 'all around',
+            layerOrder: 1,
+          }),
     };
   }
   static emptyStage() {
     return new Target({
       isStage: true,
       name: 'Stage',
+      variables: [],
+      blocks: [],
+      broadcasts: [],
+    });
+  }
+  static emptyCat() {
+    return new Target({
+      isStage: false,
+      name: 'Sprite',
       variables: [],
       blocks: [],
       broadcasts: [],
@@ -146,14 +171,15 @@ export class TargetBroadcast {
     return this.name;
   }
 }
-type OpCode =
+type BlockOpCode =
   | 'event_whenflagclicked'
   | 'looks_nextbackdrop'
   | 'event_whenbroadcastreceived'
-  | 'event_broadcastandwait';
+  | 'event_broadcastandwait'
+  | 'looks_say';
 export class Block {
   id: string;
-  opcode: OpCode;
+  opcode: BlockOpCode;
   next: string | null;
   parent: string | null;
   topLevel: boolean;
@@ -162,7 +188,7 @@ export class Block {
   x?: number;
   constructor(
     id: string,
-    opcode: OpCode,
+    opcode: BlockOpCode,
     next: string | null,
     parent: string | null,
     topLevel: boolean,
@@ -197,7 +223,7 @@ export class Block {
     };
   }
   static createTopLevelBlock(
-    opcode: OpCode,
+    opcode: BlockOpCode,
     fields: Array<Field>,
     inputs: Array<Input>,
     x: number
@@ -205,13 +231,18 @@ export class Block {
     return new Block(uuidv4(), opcode, null, null, true, fields, inputs, x);
   }
   createChild(
-    opcode: OpCode,
+    opcode: BlockOpCode,
     fields: Array<Field>,
     inputs: Array<Input>
   ): Block {
     const newid = uuidv4();
     this.next = newid;
     return new Block(newid, opcode, null, this.id, false, fields, inputs);
+  }
+  addChild(block: Block): Block {
+    block.parent = this.id;
+    this.next = block.id;
+    return block;
   }
 }
 export class Field {
@@ -233,12 +264,12 @@ export class Field {
 export class Input {
   name: string;
   shadow: 'shadow' | 'none' | 'obscured';
-  type: 'broadcast';
+  type: 'broadcast' | 'text';
   arr: Array<unknown>;
   constructor(
     name: string,
     shadow: 'shadow' | 'none' | 'obscured',
-    type: 'broadcast',
+    type: 'broadcast' | 'text',
     arr: Array<unknown>
   ) {
     this.name = name;
@@ -253,6 +284,7 @@ export class Input {
     if (this.shadow === 'obscured') shadow = 3;
     let type;
     if (this.type === 'broadcast') type = 11;
+    if (this.type === 'text') type = 10;
     return [shadow, [type, ...this.arr]];
   }
 }
