@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { InputValue } from './types';
 
 export class SB3 {
   meta: Meta;
@@ -20,6 +21,7 @@ export class SB3 {
   }
   addSprite(sprite: Target) {
     this.targets.push(sprite);
+    return sprite;
   }
 }
 export class Meta {
@@ -202,7 +204,10 @@ type BlockOpCode =
   | 'looks_say'
   | 'data_insertatlist'
   | 'data_itemoflist'
-  | 'data_deleteoflist';
+  | 'data_deleteoflist'
+  | 'looks_sayforsecs'
+  | 'event_broadcast'
+  | 'data_itemoflist';
 export class Block {
   id: string;
   opcode: BlockOpCode;
@@ -265,7 +270,7 @@ export class Block {
     this.next = newid;
     return new Block(newid, opcode, null, this.id, false, fields, inputs);
   }
-  addChild(block: Block): Block {
+  addChild(block: Block, next?: boolean): Block {
     block.parent = this.id;
     this.next = block.id;
     return block;
@@ -287,31 +292,30 @@ export class Field {
     return new Field(name, value, id);
   }
 }
+export enum InputType {
+  Broadcast = 11,
+  Text = 10,
+  Int = 7,
+  MathNum = 4,
+}
 export class Input {
   name: string;
   shadow: 'shadow' | 'none' | 'obscured';
-  type: 'broadcast' | 'text' | 'int';
-  arr: Array<unknown>;
+  data: unknown;
   constructor(
     name: string,
     shadow: 'shadow' | 'none' | 'obscured',
-    type: 'broadcast' | 'text' | 'int',
-    arr: Array<unknown>
+    data: unknown
   ) {
     this.name = name;
     this.shadow = shadow;
-    this.type = type;
-    this.arr = arr;
+    this.data = data;
   }
   json() {
     let shadow;
     if (this.shadow === 'shadow') shadow = 1;
     if (this.shadow === 'none') shadow = 2;
     if (this.shadow === 'obscured') shadow = 3;
-    let type;
-    if (this.type === 'broadcast') type = 11;
-    if (this.type === 'text') type = 10;
-    if (this.type === 'int') type = 7;
-    return [shadow, [type, ...this.arr]];
+    return [shadow, this.data];
   }
 }

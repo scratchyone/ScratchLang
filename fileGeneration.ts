@@ -7,35 +7,41 @@ import * as SB3 from './SB3';
 import * as Blocks from './blocks';
 
 const nativeFunctions = {
-  say: (args: Array<any>) => new Blocks.Say(args[0]),
+  say: (id: string, args: Array<Types.ParsedInputValue>) =>
+    args.length === 2
+      ? new Blocks.SayForSecs(id, args[0], args[1])
+      : new Blocks.Say(id, args[0]),
 };
 
-export class Generator {
-  data: AdmZip;
-  constructor(data: AdmZip) {
-    this.data = data;
+export class PClass {
+  functionsSoFar: number;
+  parsedClass: Types.ClassDef;
+  constructor(parsedClass: Types.ClassDef) {
+    this.parsedClass = parsedClass;
+    this.functionsSoFar = 0;
   }
-  exportToFile(file: string) {
-    this.data.writeZip(file);
-  }
-  static createFromParse(parse: Array<Types.Token>): Generator {
-    // Create blank zip
-    const data = new Generator(new AdmZip());
-    // Create project.json
-    const pjson = SB3.SB3.empty();
-    pjson.addSprite(SB3.Target.emptyCat());
-    const stage = pjson.targets.find((n) => n.name === 'Stage');
-    const mainSprite = pjson.targets.find((n) => n.name === 'Sprite');
-    // Start parsing
-    const functions = parse.filter((f) => f.type === 'functionDef');
-    if (!stage) throw new Error('Failed to create stage, something went wrong');
-    const stack = stage.addList('stack', []);
-    if (!mainSprite)
-      throw new Error('Failed to create sprite, something went wrong');
-    const broadcasts = new Map();
-    let functionsSoFar = 0;
-    const staggerAmount = 400;
-    for (const sfunction of functions) {
+  generateAndSave(
+    stage: SB3.Target,
+    broadcasts: Map<string, string>,
+    pjson: SB3.SB3,
+    stack: SB3.List
+  ) {
+    const sprite =
+      this.parsedClass.name === 'Stage'
+        ? stage
+        : pjson.addSprite(
+            new SB3.Target({
+              isStage: false,
+              name: this.parsedClass.name,
+              variables: [],
+              blocks: [],
+              broadcasts: [],
+              lists: [],
+            })
+          );
+    for (const sfunction of this.parsedClass.functions.filter(
+      (n) => n.type === 'functionDef'
+    )) {
       let headBlock;
       if (sfunction.name === 'main' && sfunction.type === 'functionDef') {
         log.debug('Main function found, creating green flag event');
@@ -44,23 +50,28 @@ export class Generator {
           'event_whenflagclicked',
           [],
           [],
-          functionsSoFar * staggerAmount + 43
+          this.functionsSoFar * 400 + 43
         );
       } else if (sfunction.type === 'functionDef') {
-        const broadcastId = stage.addBroadcast(`function__${sfunction.name}`);
+        const broadcastId = stage.addBroadcast(
+          `function__${this.parsedClass.name}.${sfunction.name}`
+        );
         headBlock = SB3.Block.createTopLevelBlock(
           'event_whenbroadcastreceived',
           [
             SB3.Field.createNewField(
               'BROADCAST_OPTION',
-              `function__${sfunction.name}`,
+              `function__${this.parsedClass.name}.${sfunction.name}`,
               broadcastId
             ),
           ],
           [],
-          functionsSoFar * staggerAmount + 43
+          this.functionsSoFar * 400 + 43
         );
-        broadcasts.set(sfunction.name, broadcastId);
+        broadcasts.set(
+          `${this.parsedClass.name}.${sfunction.name}`,
+          broadcastId
+        );
       }
       if (sfunction.type === 'functionDef') {
         if (!headBlock)
@@ -68,7 +79,7 @@ export class Generator {
             `Failed to create head block for function ${sfunction.name}`
           );
         let lastBlock = headBlock;
-        let varMappings = new Map();
+        let varMappings: Map<string, number> = new Map();
         let stackShift = 0;
         for (const child of sfunction.codeLines) {
           let currBlock;
@@ -77,7 +88,31 @@ export class Generator {
               (n) => n[0] === child.name
             );
             if (nativeFunction) {
-              currBlock = lastBlock.addChild(nativeFunction[1](child.args));
+              let nextId = uuidv4();
+              const newArgs: Array<Types.ParsedInputValue> = child.args.map(
+                (arg) => {
+                  if (arg.type === 'objectLiteral')
+                    return { type: 'objectLiteral', value: arg.value };
+                  else {
+                    const foundVar = varMappings.get(arg.name);
+                    if (foundVar === undefined)
+                      throw new Error(`Variable ${arg.name} does not exist`);
+                    const newBlockId = uuidv4();
+                    sprite.addBlock(
+                      new Blocks.ItemFromListSimple(
+                        newBlockId,
+                        stack,
+                        stackShift - foundVar,
+                        nextId
+                      )
+                    );
+                    return { type: 'blockReference', id: newBlockId };
+                  }
+                }
+              );
+              currBlock = lastBlock.addChild(
+                nativeFunction[1](nextId, newArgs)
+              );
             } else {
               const broadcastId = broadcasts.get(child.name);
               if (!broadcastId)
@@ -87,34 +122,62 @@ export class Generator {
               currBlock = lastBlock.addChild(
                 new Blocks.SendBroadcast(
                   broadcastId as string,
-                  `function__${child.name}`
+                  `function__${child.name}`,
+                  child.async
                 )
               );
             }
           } else if (child.type === 'variableDef') {
             currBlock = lastBlock.addChild(
-              new Blocks.InsertIntoList(stack, 1, child.value)
+              new Blocks.InsertIntoListSimple(stack, 1, child.value)
             );
             varMappings.set(child.name, stackShift);
             stackShift++;
           }
-          mainSprite.addBlock(lastBlock);
+          sprite.addBlock(lastBlock);
           if (currBlock) lastBlock = currBlock;
         }
         while (stackShift > 0) {
           stackShift--;
           const currBlock = lastBlock.addChild(
-            new Blocks.DeleteFromList(stack, 1)
+            new Blocks.DeleteFromListSimple(stack, 1)
           );
-          mainSprite.addBlock(lastBlock);
+          sprite.addBlock(lastBlock);
           lastBlock = currBlock;
         }
-        mainSprite.addBlock(lastBlock);
+        sprite.addBlock(lastBlock);
       }
-      functionsSoFar++;
+      this.functionsSoFar++;
     }
-    if (!functions.find((f) => f.name === 'main'))
-      log.warn('No main function found, that might be a mistake');
+  }
+}
+export class Generator {
+  data: AdmZip;
+  constructor(data: AdmZip) {
+    this.data = data;
+  }
+  exportToFile(file: string) {
+    this.data.writeZip(file);
+  }
+  static blank() {
+    return new Generator(new AdmZip());
+  }
+  createFromParse(parse: Array<Types.Token>): Generator {
+    // Create project.json
+    const pjson = SB3.SB3.empty();
+    const stage = pjson.targets.find((n) => n.name === 'Stage');
+    if (!stage) throw new Error('Failed to create stage, something went wrong');
+    const stack = stage.addList('stack', []);
+    const broadcasts: Map<string, string> = new Map();
+    // Start parsing
+    for (const sclass of parse.filter((n) => n.type === 'classDef')) {
+      new PClass(sclass as Types.ClassDef).generateAndSave(
+        stage,
+        broadcasts,
+        pjson,
+        stack
+      );
+    }
     console.log(
       util.inspect(pjson.json(), {
         showHidden: false,
@@ -122,12 +185,12 @@ export class Generator {
         colors: true,
       })
     );
-    data.data.addFile(
+    this.data.addFile(
       'project.json',
       Buffer.from(JSON.stringify(pjson.json()), 'utf-8')
     );
     // Add required stage backdrop
-    data.data.addLocalFile('./cd21514d0531fdffb22204e0ec5ed84a.svg');
-    return data;
+    this.data.addLocalFile('./cd21514d0531fdffb22204e0ec5ed84a.svg');
+    return this;
   }
 }

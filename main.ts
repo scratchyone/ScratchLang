@@ -47,7 +47,7 @@ if (args['--help']) {
   console.log('--compile <file> --output <sb3 name>       Compile a file');
   process.exit(0);
 } else if (args['--compile'] && args['--output']) {
-  log.info(`Compiling ${args['--compile']}`);
+  log.info(`Parsing ${args['--compile']}`);
   const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
   const fileData = readFileSync(args['--compile']).toString();
   parser.feed(fileData + '\n');
@@ -55,7 +55,8 @@ if (args['--help']) {
   console.log(
     util.inspect(results, { showHidden: false, depth: null, colors: true })
   );
-  Generator.createFromParse(results).exportToFile(args['--output']);
+  log.info(`Compiling ${args['--compile']}`);
+  Generator.blank().createFromParse(results).exportToFile(args['--output']);
   log.info('Finished compiling');
 } else {
   log.error('No valid options given');

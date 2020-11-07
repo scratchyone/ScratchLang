@@ -1,16 +1,18 @@
 import * as SB3 from './SB3';
 import { v4 as uuidv4 } from 'uuid';
+import { ParsedInputValue } from './types';
 export class SendBroadcast extends SB3.Block {
-  constructor(broadcastId: string, broadcastName: string) {
+  constructor(broadcastId: string, broadcastName: string, async: boolean) {
     super(
       uuidv4(),
-      'event_broadcastandwait',
+      async ? 'event_broadcast' : 'event_broadcastandwait',
       null,
       null,
       false,
       [],
       [
-        new SB3.Input('BROADCAST_INPUT', 'shadow', 'broadcast', [
+        new SB3.Input('BROADCAST_INPUT', 'shadow', [
+          SB3.InputType.Broadcast,
           broadcastName,
           broadcastId,
         ]),
@@ -19,19 +21,56 @@ export class SendBroadcast extends SB3.Block {
   }
 }
 export class Say extends SB3.Block {
-  constructor(message: string) {
+  constructor(id: string, message: ParsedInputValue) {
+    console.log(message);
     super(
-      uuidv4(),
+      id,
       'looks_say',
       null,
       null,
       false,
       [],
-      [new SB3.Input('MESSAGE', 'shadow', 'text', [message])]
+      [
+        new SB3.Input(
+          'MESSAGE',
+          'shadow',
+          message.type === 'objectLiteral'
+            ? [SB3.InputType.Text, message.value]
+            : message.id
+        ),
+      ]
     );
   }
 }
-export class DeleteFromList extends SB3.Block {
+export class SayForSecs extends SB3.Block {
+  constructor(id: string, message: ParsedInputValue, time: ParsedInputValue) {
+    super(
+      id,
+      'looks_sayforsecs',
+      null,
+      null,
+      false,
+      [],
+      [
+        new SB3.Input(
+          'MESSAGE',
+          'shadow',
+          message.type === 'objectLiteral'
+            ? [SB3.InputType.Text, message.value]
+            : message.id
+        ),
+        new SB3.Input(
+          'SECS',
+          'shadow',
+          time.type === 'objectLiteral'
+            ? [SB3.InputType.MathNum, time.value]
+            : time.id
+        ),
+      ]
+    );
+  }
+}
+export class DeleteFromListSimple extends SB3.Block {
   constructor(list: SB3.List, index: number) {
     super(
       uuidv4(),
@@ -40,11 +79,11 @@ export class DeleteFromList extends SB3.Block {
       null,
       false,
       [SB3.Field.createNewField('LIST', list.name, list.id)],
-      [new SB3.Input('INDEX', 'shadow', 'int', [index.toString()])]
+      [new SB3.Input('INDEX', 'shadow', [SB3.InputType.Int, index.toString()])]
     );
   }
 }
-export class InsertIntoList extends SB3.Block {
+export class InsertIntoListSimple extends SB3.Block {
   constructor(list: SB3.List, index: number, text: string) {
     super(
       uuidv4(),
@@ -54,9 +93,22 @@ export class InsertIntoList extends SB3.Block {
       false,
       [SB3.Field.createNewField('LIST', list.name, list.id)],
       [
-        new SB3.Input('INDEX', 'shadow', 'text', [index.toString()]),
-        new SB3.Input('ITEM', 'shadow', 'text', [text]),
+        new SB3.Input('INDEX', 'shadow', [SB3.InputType.Int, index.toString()]),
+        new SB3.Input('ITEM', 'shadow', [SB3.InputType.Text, text]),
       ]
+    );
+  }
+}
+export class ItemFromListSimple extends SB3.Block {
+  constructor(id: string, list: SB3.List, index: number, parent: string) {
+    super(
+      id,
+      'data_itemoflist',
+      null,
+      parent,
+      false,
+      [SB3.Field.createNewField('LIST', list.name, list.id)],
+      [new SB3.Input('INDEX', 'shadow', [SB3.InputType.Int, index.toString()])]
     );
   }
 }

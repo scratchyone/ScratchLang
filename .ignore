@@ -1,0 +1,7 @@
+node_modules
+compiled.sb3
+package.json
+package-lock.json
+grammar.json
+tsconfig.json
+.eslintrc.json

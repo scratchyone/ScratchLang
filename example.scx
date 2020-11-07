@@ -1,13 +1,9 @@
-function main3() {
-    var x = "test";
-    var y = "test";
-    var z = "test";
-    var a = "test";
-    say("hello world!");
-}
-function main2() {
-    main3();
-}
-function main() {
-    main2();
+class Dog {
+    function sayhi() {
+        var x = "Bark! Hello world!"
+        say(x)
+    }
+    function main() {
+        Dog.sayhi()
+    }
 }
