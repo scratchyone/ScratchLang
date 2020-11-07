@@ -4,7 +4,7 @@ ScratchLang is a C-like language that compiles into [Scratch](https://scratch.mi
 
 # Todo
 
-- [] Allow defining functions with parameters
-- [] Implement more native functions
-- [] Add scoped variables
-- [] Add stack
+- [ ] Allow defining functions with parameters
+- [ ] Implement more native functions
+- [ ] Add scoped variables
+- [ ] Add stack
