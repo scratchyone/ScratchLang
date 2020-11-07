@@ -18,9 +18,16 @@
     "typescript": "^4.0.5"
   },
   "dependencies": {
+    "@types/adm-zip": "^0.4.33",
     "@types/nearley": "^2.11.1",
     "@types/node": "^14.14.6",
+    "@types/uuid": "^8.3.0",
+    "adm-zip": "^0.4.16",
     "arg": "^4.1.3",
-    "nearley": "^2.19.7"
+    "chalk": "^4.1.0",
+    "loglevel": "^1.7.0",
+    "loglevel-plugin-prefix": "^0.8.4",
+    "nearley": "^2.19.7",
+    "uuid": "^8.3.1"
   }
 }
