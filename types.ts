@@ -1,4 +1,4 @@
-export type Token = VariableDef | FunctionDef;
+export type Token = VariableDef | FunctionDef | FunctionCall;
 interface VariableDef {
   type: 'variableDef';
   name: string;
@@ -8,4 +8,8 @@ interface FunctionDef {
   type: 'functionDef';
   name: string;
   codeLines: Array<Token>;
+}
+interface FunctionCall {
+  type: 'functionCall';
+  name: string;
 }

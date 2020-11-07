@@ -3,6 +3,7 @@ import AdmZip from 'adm-zip';
 import { v4 as uuidv4 } from 'uuid';
 import util from 'util';
 import log from 'loglevel';
+import * as SB3 from './SB3';
 export class Generator {
   data: AdmZip;
   constructor(data: AdmZip) {
@@ -15,22 +16,73 @@ export class Generator {
     // Create blank zip
     const data = new Generator(new AdmZip());
     // Create project.json
-    const pjson = SB3.empty();
+    const pjson = SB3.SB3.empty();
     const stage = pjson.targets.find((n) => n.name === 'Stage');
     // Start parsing
     const functions = parse.filter((f) => f.type === 'functionDef');
-    console.log(functions);
     if (!stage) throw new Error('Failed to create stage, something went wrong');
+    const broadcasts = new Map();
+    let functionsSoFar = 0;
+    const staggerAmount = 400;
     for (const sfunction of functions) {
-      if (sfunction.name === 'main') {
+      let headBlock;
+      if (sfunction.name === 'main' && sfunction.type === 'functionDef') {
         log.debug('Main function found, creating green flag event');
         // Create green flag function
-        const greenFlagEvent = SB3Block.createTopLevelBlock(
-          'event_whenflagclicked'
+        headBlock = SB3.Block.createTopLevelBlock(
+          'event_whenflagclicked',
+          [],
+          [],
+          functionsSoFar * staggerAmount + 43
         );
-        stage.addBlock(greenFlagEvent);
+      } else if (sfunction.type === 'functionDef') {
+        const broadcastId = stage.addBroadcast(`function__${sfunction.name}`);
+        headBlock = SB3.Block.createTopLevelBlock(
+          'event_whenbroadcastreceived',
+          [
+            SB3.Field.createNewField(
+              'BROADCAST_OPTION',
+              `function__${sfunction.name}`,
+              broadcastId
+            ),
+          ],
+          [],
+          functionsSoFar * staggerAmount + 43
+        );
+        broadcasts.set(sfunction.name, broadcastId);
       }
+      if (sfunction.type === 'functionDef') {
+        if (!headBlock)
+          throw new Error(
+            `Failed to create head block for function ${sfunction.name}`
+          );
+        let lastBlock = headBlock;
+        for (const child of sfunction.codeLines)
+          if (child.type === 'functionCall') {
+            const broadcastId = broadcasts.get(child.name);
+            if (!broadcastId)
+              throw new Error(
+                `Tried to call function ${child.name} but it doesn't exist`
+              );
+            const currBlock = lastBlock.createChild(
+              'event_broadcastandwait',
+              [],
+              [
+                new SB3.Input('BROADCAST_INPUT', 'shadow', 'broadcast', [
+                  `function__${child.name}`,
+                  broadcastId as string,
+                ]),
+              ]
+            );
+            stage.addBlock(lastBlock);
+            lastBlock = currBlock;
+          }
+        stage.addBlock(lastBlock);
+      }
+      functionsSoFar++;
     }
+    if (!functions.find((f) => f.name === 'main'))
+      log.warn('No main function found, that might be a mistake');
     console.log(
       util.inspect(pjson.json(), {
         showHidden: false,
@@ -45,166 +97,5 @@ export class Generator {
     // Add required stage backdrop
     data.data.addLocalFile('./cd21514d0531fdffb22204e0ec5ed84a.svg');
     return data;
-  }
-}
-class SB3 {
-  meta: SB3Meta;
-  targets: Array<SB3Target>;
-  constructor({ meta, targets }: { meta: SB3Meta; targets: Array<SB3Target> }) {
-    this.meta = meta;
-    this.targets = targets;
-  }
-  static empty(): SB3 {
-    return new SB3({ meta: new SB3Meta(), targets: [SB3Target.emptyStage()] });
-  }
-  json() {
-    return {
-      meta: this.meta.json(),
-      targets: this.targets.map((t) => t.json()),
-      monitors: [],
-      extensions: [],
-    };
-  }
-}
-class SB3Meta {
-  constructor() {}
-  json() {
-    return {
-      semver: '3.0.0',
-      vm: '0.2.0-prerelease.20201016122132',
-      agent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.183 Safari/537.36',
-    };
-  }
-}
-class SB3Target {
-  isStage: boolean;
-  name: string;
-  variables: Array<SB3Variable>;
-  blocks: Array<SB3Block>;
-  constructor({
-    isStage,
-    name,
-    variables,
-    blocks,
-  }: {
-    isStage: boolean;
-    name: string;
-    variables: Array<SB3Variable>;
-    blocks: Array<SB3Block>;
-  }) {
-    this.isStage = isStage;
-    this.name = name;
-    this.variables = variables;
-    this.blocks = blocks;
-  }
-  json() {
-    const vars: { [key: string]: [string, string | number] } = {};
-    for (const svar of this.variables) vars[svar.id] = [svar.name, svar.value];
-    const blocks: { [key: string]: unknown } = {};
-    for (const block of this.blocks) blocks[block.id] = block.json();
-    return {
-      isStage: this.isStage,
-      name: this.name,
-      variables: vars,
-      lists: {},
-      broadcasts: {},
-      blocks: blocks,
-      comments: {
-        [uuidv4()]: {
-          blockId: null,
-          x: 41.481481481481296,
-          y: 26.666666666666515,
-          width: 185.1851806640625,
-          height: 94.81481170654297,
-          minimized: false,
-          text: 'Generated by scratchLang v1.0.0',
-        },
-      },
-      currentCostume: 0,
-      costumes: [
-        {
-          assetId: 'cd21514d0531fdffb22204e0ec5ed84a',
-          name: 'backdrop1',
-          md5ext: 'cd21514d0531fdffb22204e0ec5ed84a.svg',
-          dataFormat: 'svg',
-          rotationCenterX: 240,
-          rotationCenterY: 180,
-        },
-      ],
-      sounds: [],
-      volume: 100,
-      layerOrder: 0,
-      tempo: 60,
-      videoTransparency: 50,
-      videoState: 'on',
-      textToSpeechLanguage: null,
-    };
-  }
-  static emptyStage() {
-    return new SB3Target({
-      isStage: true,
-      name: 'Stage',
-      variables: [],
-      blocks: [],
-    });
-  }
-  addVariable(name: string, value: string | number) {
-    this.variables.push(new SB3Variable(name, value, uuidv4()));
-  }
-  addBlock(block: SB3Block) {
-    this.blocks.push(block);
-  }
-}
-class SB3Variable {
-  id: string;
-  name: string;
-  value: string | number;
-  constructor(name: string, value: string | number, id: string) {
-    this.id = id;
-    this.name = name;
-    this.value = value;
-  }
-}
-type OpCode = 'event_whenflagclicked' | 'looks_nextbackdrop';
-class SB3Block {
-  id: string;
-  opcode: OpCode;
-  next: string | null;
-  parent: string | null;
-  topLevel: boolean;
-  constructor(
-    id: string,
-    opcode: OpCode,
-    next: string | null,
-    parent: string | null,
-    topLevel: boolean
-  ) {
-    this.id = id;
-    this.opcode = opcode;
-    this.next = next;
-    this.parent = parent;
-    this.topLevel = topLevel;
-  }
-  json() {
-    return {
-      opcode: this.opcode,
-      next: this.next,
-      parent: this.parent,
-      inputs: {},
-      fields: {},
-      shadow: false,
-      topLevel: this.topLevel,
-      y: 150,
-      x: 43,
-    };
-  }
-  static createTopLevelBlock(opcode: OpCode): SB3Block {
-    return new SB3Block(uuidv4(), opcode, null, null, true);
-  }
-  createChild(opcode: OpCode): SB3Block {
-    const newid = uuidv4();
-    this.next = newid;
-    return new SB3Block(newid, opcode, null, this.id, false);
   }
 }

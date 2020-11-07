@@ -1,3 +1,9 @@
-function main() {
+function main3() {
     var x = "test";
+}
+function main2() {
+    main3();
+}
+function main() {
+    main2();
 }

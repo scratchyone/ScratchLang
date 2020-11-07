@@ -47,7 +47,7 @@ if (args['--help']) {
   console.log('--compile <file> --output <sb3 name>       Compile a file');
   process.exit(0);
 } else if (args['--compile'] && args['--output']) {
-  console.log(`Compiling ${args['--compile']}`);
+  log.info(`Compiling ${args['--compile']}`);
   const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
   const fileData = readFileSync(args['--compile']).toString();
   parser.feed(fileData + '\n');
