@@ -2,12 +2,12 @@
 @builtin "whitespace.ne"
 @builtin "string.ne"
 
-classes -> class:+ {% n => n[0]%}
+sprites -> sprite:+ {% n => n[0]%}
 
-class -> "class" __ objectName ___ "{" ___ functionDef:* ___ "}" ___ {% n => {return { type: "classDef", name: n[2], functions: n[6] } } %}
-statementLines -> (___ statement):* {% n=> n[0].map(x=>x[1]) %}
-statement -> (variableDef | functionDef | functionCall) {% n => n[0][0] %}
-functionDef -> "function" __ objectName ___ "(" commaSeparatedObjectNames:? ")" ___ "{" ___ statementLines ___ "}" ___ {% 
+sprite -> "sprite" __ objectCallableName ___ "{" ___ functionDef:* ___ "}" ___ {% n => {return { type: "spriteDef", name: n[2], functions: n[6] } } %}
+statementLines -> (statement ___):* {% n=> n[0].map(x=>x[0]) %}
+statement -> (variableDef | functionDef | functionCall) "\n" {% n => n[0][0] %}
+functionDef -> "function" __ objectName _ "(" commaSeparatedObjectNames:? ")" ___ "{" ___ statementLines "}" ___ {% 
 (n) => { return {type: "functionDef", name: n[2], codeLines: n[10], args: n[5]} }
 %}
 variableDef -> "var" __ objectName _ "=" _ object {% n => {return {type: "variableDef", name: n[2], value: n[6]}} %}

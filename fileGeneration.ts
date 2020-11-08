@@ -13,10 +13,10 @@ const nativeFunctions = {
       : new Blocks.Say(id, args[0]),
 };
 
-export class PClass {
+export class Sprite {
   functionsSoFar: number;
-  parsedClass: Types.ClassDef;
-  constructor(parsedClass: Types.ClassDef) {
+  parsedClass: Types.SpriteDef;
+  constructor(parsedClass: Types.SpriteDef) {
     this.parsedClass = parsedClass;
     this.functionsSoFar = 0;
   }
@@ -170,8 +170,12 @@ export class Generator {
     const stack = stage.addList('stack', []);
     const broadcasts: Map<string, string> = new Map();
     // Start parsing
-    for (const sclass of parse.filter((n) => n.type === 'classDef')) {
-      new PClass(sclass as Types.ClassDef).generateAndSave(
+    const spritesSoFar = new Set();
+    for (const sprite of parse.filter((n) => n.type === 'spriteDef')) {
+      if (spritesSoFar.has(sprite.name))
+        throw new Error(`Sprite ${sprite.name} already exists`);
+      spritesSoFar.add(sprite.name);
+      new Sprite(sprite as Types.SpriteDef).generateAndSave(
         stage,
         broadcasts,
         pjson,

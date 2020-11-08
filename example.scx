@@ -1,9 +1,0 @@
-class Dog {
-    function sayhi() {
-        var x = "Bark! Hello world!"
-        say(x)
-    }
-    function main() {
-        Dog.sayhi()
-    }
-}

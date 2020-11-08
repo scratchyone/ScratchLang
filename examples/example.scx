@@ -1,0 +1,19 @@
+sprite Utils.Timing {
+    function sleep() {
+        say("", 1)
+    }
+}
+
+sprite Dog {
+    function sayhi() {
+        var x = "This will be printed"
+        say(x, 3)
+        Utils.Timing.sleep()
+        var x = "This should show up too"
+        say(x, 3)
+        Utils.Timing.sleep()
+    }
+    function main() {
+        Dog.sayhi()
+    }
+}
