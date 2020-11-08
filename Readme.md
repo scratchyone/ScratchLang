@@ -6,6 +6,7 @@ ScratchLang is a C-like language that compiles into [Scratch](https://scratch.mi
 
 - [ ] Allow defining functions with parameters
 - [ ] Implement more native functions
+- [ ] Allow function returns as inputs without generated variables
 - [x] Add variable access
 - [x] Add scoped variables
 - [x] Add stack
