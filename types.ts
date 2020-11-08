@@ -1,4 +1,9 @@
-export type Token = VariableDef | FunctionDef | FunctionCall | SpriteDef;
+export type Token =
+  | VariableDef
+  | FunctionDef
+  | FunctionCall
+  | SpriteDef
+  | Return;
 export interface VariableDef {
   type: 'variableDef';
   name: string;
@@ -27,6 +32,10 @@ export interface ObjectLiteral {
 export interface ObjectReference {
   type: 'objectReference';
   name: string;
+}
+export interface Return {
+  type: 'return';
+  value: InputValue;
 }
 export type InputValue = ObjectLiteral | ObjectReference;
 export type PObject = string | number;

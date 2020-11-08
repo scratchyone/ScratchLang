@@ -8,6 +8,7 @@ import util from 'util';
 import log from 'loglevel';
 import prefix from 'loglevel-plugin-prefix';
 import chalk from 'chalk';
+import path from 'path';
 
 const colors = {
   TRACE: chalk.magenta,
@@ -48,8 +49,21 @@ if (args['--help']) {
   process.exit(0);
 } else if (args['--compile'] && args['--output']) {
   log.info(`Parsing ${args['--compile']}`);
+  let fileData = readFileSync(args['--compile']).toString();
+  // Fill in @include statements
+  const includeRegex = /@include "(.*)"\n/g;
+  const includes = fileData.matchAll(includeRegex);
+  if (includes)
+    for (const include of includes) {
+      fileData = fileData.replace(
+        include[0],
+        readFileSync(
+          path.dirname(args['--compile']) + '/' + include[1]
+        ).toString()
+      );
+    }
+  // Parse data
   const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
-  const fileData = readFileSync(args['--compile']).toString();
   parser.feed(fileData + '\n');
   const results = parser.results[0] as Array<Types.Token>;
   console.log(

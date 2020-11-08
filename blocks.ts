@@ -83,6 +83,28 @@ export class DeleteFromListSimple extends SB3.Block {
     );
   }
 }
+export class InsertIntoList extends SB3.Block {
+  constructor(list: SB3.List, index: number, text: ParsedInputValue) {
+    super(
+      uuidv4(),
+      'data_insertatlist',
+      null,
+      null,
+      false,
+      [SB3.Field.createNewField('LIST', list.name, list.id)],
+      [
+        new SB3.Input('INDEX', 'shadow', [SB3.InputType.Int, index.toString()]),
+        new SB3.Input(
+          'ITEM',
+          'shadow',
+          text.type === 'objectLiteral'
+            ? [SB3.InputType.Text, text.value]
+            : text.id
+        ),
+      ]
+    );
+  }
+}
 export class InsertIntoListSimple extends SB3.Block {
   constructor(list: SB3.List, index: number, text: string) {
     super(
@@ -100,12 +122,12 @@ export class InsertIntoListSimple extends SB3.Block {
   }
 }
 export class ItemFromListSimple extends SB3.Block {
-  constructor(id: string, list: SB3.List, index: number, parent: string) {
+  constructor(list: SB3.List, index: number) {
     super(
-      id,
+      uuidv4(),
       'data_itemoflist',
       null,
-      parent,
+      null,
       false,
       [SB3.Field.createNewField('LIST', list.name, list.id)],
       [new SB3.Input('INDEX', 'shadow', [SB3.InputType.Int, index.toString()])]

@@ -1,19 +1,12 @@
-sprite Utils.Timing {
-    function sleep() {
-        say("", 1)
-    }
-}
-
 sprite Dog {
-    function sayhi() {
-        var x = "This will be printed"
-        say(x, 3)
-        Utils.Timing.sleep()
-        var x = "This should show up too"
-        say(x, 3)
-        Utils.Timing.sleep()
+    function varstuff() {
+        var x = "variable named x"
+        return x
     }
     function main() {
-        Dog.sayhi()
+        var x = "Will now show return value:"
+        say(x, 3)
+        Dog.varstuff()
+        say(lastRet, 2)
     }
 }

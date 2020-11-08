@@ -13,6 +13,27 @@ const nativeFunctions = {
       : new Blocks.Say(id, args[0]),
 };
 
+function bindInput(
+  arg: Types.InputValue,
+  varMappings: Map<string, number>,
+  sprite: SB3.Target,
+  stack: SB3.List,
+  stackShift: number,
+  parent: string
+): Types.ParsedInputValue {
+  if (arg.type === 'objectLiteral')
+    return { type: 'objectLiteral', value: arg.value };
+  else {
+    const foundVar = varMappings.get(arg.name);
+    if (foundVar === undefined)
+      throw new Error(`Variable ${arg.name} does not exist`);
+    return sprite.addReporter(
+      new Blocks.ItemFromListSimple(stack, stackShift - foundVar),
+      parent
+    );
+  }
+}
+
 export class Sprite {
   functionsSoFar: number;
   parsedClass: Types.SpriteDef;
@@ -41,9 +62,9 @@ export class Sprite {
           );
     for (const sfunction of this.parsedClass.functions.filter(
       (n) => n.type === 'functionDef'
-    )) {
+    ) as Array<Types.FunctionDef>) {
       let headBlock;
-      if (sfunction.name === 'main' && sfunction.type === 'functionDef') {
+      if (sfunction.name === 'main') {
         log.debug('Main function found, creating green flag event');
         // Create green flag function
         headBlock = SB3.Block.createTopLevelBlock(
@@ -81,8 +102,16 @@ export class Sprite {
         let lastBlock = headBlock;
         let varMappings: Map<string, number> = new Map();
         let stackShift = 0;
+        let returnValue: Types.InputValue = {
+          type: 'objectLiteral',
+          value: '<<<VOID>>>',
+        };
         for (const child of sfunction.codeLines) {
           let currBlock;
+          if (child.type === 'return') {
+            returnValue = child.value;
+            break;
+          }
           if (child.type === 'functionCall') {
             const nativeFunction = Object.entries(nativeFunctions).find(
               (n) => n[0] === child.name
@@ -91,28 +120,26 @@ export class Sprite {
               let nextId = uuidv4();
               const newArgs: Array<Types.ParsedInputValue> = child.args.map(
                 (arg) => {
-                  if (arg.type === 'objectLiteral')
-                    return { type: 'objectLiteral', value: arg.value };
-                  else {
-                    const foundVar = varMappings.get(arg.name);
-                    if (foundVar === undefined)
-                      throw new Error(`Variable ${arg.name} does not exist`);
-                    const newBlockId = uuidv4();
-                    sprite.addBlock(
-                      new Blocks.ItemFromListSimple(
-                        newBlockId,
-                        stack,
-                        stackShift - foundVar,
-                        nextId
-                      )
-                    );
-                    return { type: 'blockReference', id: newBlockId };
-                  }
+                  return bindInput(
+                    arg,
+                    varMappings,
+                    sprite,
+                    stack,
+                    stackShift,
+                    nextId
+                  );
                 }
               );
               currBlock = lastBlock.addChild(
                 nativeFunction[1](nextId, newArgs)
               );
+              sprite.addBlock(lastBlock);
+              lastBlock = currBlock;
+              currBlock = lastBlock.addChild(
+                new Blocks.InsertIntoListSimple(stack, 1, '<<<VOID>>>')
+              );
+              sprite.addBlock(lastBlock);
+              lastBlock = currBlock;
             } else {
               const broadcastId = broadcasts.get(child.name);
               if (!broadcastId)
@@ -127,6 +154,8 @@ export class Sprite {
                 )
               );
             }
+            varMappings.set('lastRet', stackShift);
+            stackShift++;
           } else if (child.type === 'variableDef') {
             currBlock = lastBlock.addChild(
               new Blocks.InsertIntoListSimple(stack, 1, child.value)
@@ -137,10 +166,32 @@ export class Sprite {
           sprite.addBlock(lastBlock);
           if (currBlock) lastBlock = currBlock;
         }
+        if (sfunction.name !== 'main') {
+          const parentId = uuidv4();
+          const tmpBlock = new Blocks.InsertIntoList(
+            stack,
+            1,
+            bindInput(
+              returnValue,
+              varMappings,
+              sprite,
+              stack,
+              stackShift,
+              parentId
+            )
+          );
+          tmpBlock.id = parentId;
+          const currBlock = lastBlock.addChild(tmpBlock);
+          sprite.addBlock(lastBlock);
+          lastBlock = currBlock;
+        }
         while (stackShift > 0) {
           stackShift--;
           const currBlock = lastBlock.addChild(
-            new Blocks.DeleteFromListSimple(stack, 1)
+            new Blocks.DeleteFromListSimple(
+              stack,
+              sfunction.name === 'main' ? 1 : 2
+            )
           );
           sprite.addBlock(lastBlock);
           lastBlock = currBlock;
@@ -171,7 +222,9 @@ export class Generator {
     const broadcasts: Map<string, string> = new Map();
     // Start parsing
     const spritesSoFar = new Set();
-    for (const sprite of parse.filter((n) => n.type === 'spriteDef')) {
+    for (const sprite of parse.filter((n) => n.type === 'spriteDef') as Array<
+      Types.SpriteDef
+    >) {
       if (spritesSoFar.has(sprite.name))
         throw new Error(`Sprite ${sprite.name} already exists`);
       spritesSoFar.add(sprite.name);

@@ -1,0 +1,5 @@
+sprite Utils.Timing {
+    function sleep() {
+        say("", 1)
+    }
+}

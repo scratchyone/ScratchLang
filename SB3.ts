@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { InputValue } from './types';
+import { InputValue, ParsedInputValue } from './types';
 
 export class SB3 {
   meta: Meta;
@@ -124,6 +124,13 @@ export class Target {
             layerOrder: 1,
           }),
     };
+  }
+  addReporter(reporter: Block, parent: string): ParsedInputValue {
+    const newBlockId = uuidv4();
+    reporter.id = newBlockId;
+    reporter.parent = parent;
+    this.addBlock(reporter);
+    return { type: 'blockReference', id: newBlockId };
   }
   static emptyStage() {
     return new Target({

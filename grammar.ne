@@ -6,7 +6,8 @@ sprites -> sprite:+ {% n => n[0]%}
 
 sprite -> "sprite" __ objectCallableName ___ "{" ___ functionDef:* ___ "}" ___ {% n => {return { type: "spriteDef", name: n[2], functions: n[6] } } %}
 statementLines -> (statement ___):* {% n=> n[0].map(x=>x[0]) %}
-statement -> (variableDef | functionDef | functionCall) "\n" {% n => n[0][0] %}
+statement -> (variableDef | functionDef | functionCall | return) "\n" {% n => n[0][0] %}
+return -> "return" __ objectRep {% n => {return {type: "return", value: n[2]} }%}
 functionDef -> "function" __ objectName _ "(" commaSeparatedObjectNames:? ")" ___ "{" ___ statementLines "}" ___ {% 
 (n) => { return {type: "functionDef", name: n[2], codeLines: n[10], args: n[5]} }
 %}
@@ -19,5 +20,8 @@ objectCallableName -> [A-Za-z0-9_.]:+ {% (n) => n[0].join('') %}
 ___ -> [ \n]:* {% n => null %}
 optNl -> "\n":* {% n => null %}
 number -> (decimal | int) {% n => n[0][0]%}
-commaSeparatedObjects -> ___ ((object {% n => {return {type: "objectLiteral", value: n[0] } } %}) | (objectName {% n => {return {type: "objectReference", name: n[0] } } %})) ___ ( "," ___ commaSeparatedObjects {% n => n[2]%} ):? {% n => [n[1][0], ...n[3] || [] ]%}
+commaSeparatedObjects -> ___ (objectLiteral | objectReference) ___ ( "," ___ commaSeparatedObjects {% n => n[2]%} ):? {% n => [n[1][0], ...n[3] || [] ]%}
 commaSeparatedObjectNames -> ___ objectName ___ ( "," ___ commaSeparatedObjectNames {% n => n[2] %} ):? {% n => [n[1], ...n[3] || [] ]%}
+objectRep -> (objectLiteral | objectReference) {% n => n[0][0] %}
+objectLiteral -> object {% n => {return {type: "objectLiteral", value: n[0] } } %}
+objectReference -> objectCallableName {% n => {return {type: "objectReference", name: n[0] } } %}

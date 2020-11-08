@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "lib": ["es2020.string"],
+    "downlevelIteration": true,
     /* Visit https://aka.ms/tsconfig.json to read more about this file */
 
     /* Basic Options */

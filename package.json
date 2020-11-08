@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nearleyc grammar.ne -o grammar.js && ts-node-dev --respawn --watch example.scx main.ts -- "
+    "dev": "nearleyc grammar.ne -o grammar.js && ts-node-dev --respawn --watch examples/*.scx main.ts -- "
   },
   "author": "",
   "license": "ISC",
