@@ -2,10 +2,10 @@ import * as SB3 from './SB3';
 import { v4 as uuidv4 } from 'uuid';
 import { ParsedInputValue } from './types';
 export class SendBroadcast extends SB3.Block {
-  constructor(broadcastId: string, broadcastName: string, async: boolean) {
+  constructor(broadcastId: string, broadcastName: string) {
     super(
       uuidv4(),
-      async ? 'event_broadcast' : 'event_broadcastandwait',
+      'event_broadcastandwait',
       null,
       null,
       false,

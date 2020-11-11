@@ -1,12 +1,14 @@
 sprite Dog {
     function varstuff() {
-        var x = "variable named x"
-        return x
+        const data = "epic return value"
+        const tmp = data
+        return tmp
     }
     function main() {
-        var x = "Will now show return value:"
-        say(x, 3)
+        const message = "Will now show return value:"
+        say(message, 3)
         Dog.varstuff()
         say(lastRet, 2)
+        say("Displayed!")
     }
 }

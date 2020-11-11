@@ -11,8 +11,8 @@ return -> "return" __ objectRep {% n => {return {type: "return", value: n[2]} }%
 functionDef -> "function" __ objectName _ "(" commaSeparatedObjectNames:? ")" ___ "{" ___ statementLines "}" ___ {% 
 (n) => { return {type: "functionDef", name: n[2], codeLines: n[10], args: n[5]} }
 %}
-variableDef -> "var" __ objectName _ "=" _ object {% n => {return {type: "variableDef", name: n[2], value: n[6]}} %}
-functionCall -> ("async" __):? objectCallableName "(" commaSeparatedObjects:? ")" {% n => {return {type: "functionCall", name: n[1], args: n[3] || [], async: !!n[0] }} %}
+variableDef -> ("var" | "const") __ objectName _ "=" _ objectRep {% n => {return {type: "variableDef", name: n[2], value: n[6], constant: n[0][0] === "const"}} %}
+functionCall -> objectCallableName "(" commaSeparatedObjects:? ")" {% n => {return {type: "functionCall", name: n[0], args: n[2] || []}} %}
 object -> (string | number) {% n => n[0][0]%}
 string -> (dqstring | sqstring | btstring) {% n => n[0][0]%}
 objectName -> [A-Za-z0-9_]:+ {% (n) => n[0].join('') %}

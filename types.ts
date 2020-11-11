@@ -7,7 +7,8 @@ export type Token =
 export interface VariableDef {
   type: 'variableDef';
   name: string;
-  value: string;
+  value: InputValue;
+  constant: boolean;
 }
 export interface FunctionDef {
   type: 'functionDef';
@@ -23,7 +24,6 @@ export interface FunctionCall {
   type: 'functionCall';
   name: string;
   args: Array<InputValue>;
-  async: boolean;
 }
 export interface ObjectLiteral {
   type: 'objectLiteral';

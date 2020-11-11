@@ -6,16 +6,26 @@ import log from 'loglevel';
 import * as SB3 from './SB3';
 import * as Blocks from './blocks';
 
-const nativeFunctions = {
+const BLOCK_WIDTH = 500;
+const VOID = '<<void>>';
+
+interface NativeFunctionData {
+  return: true | false;
+  blocks: Array<SB3.Block>;
+}
+
+const nativeFunctions: {
+  [key: string]: (...args: any[]) => NativeFunctionData;
+} = {
   say: (id: string, args: Array<Types.ParsedInputValue>) =>
     args.length === 2
-      ? new Blocks.SayForSecs(id, args[0], args[1])
-      : new Blocks.Say(id, args[0]),
+      ? { return: false, blocks: [new Blocks.SayForSecs(id, args[0], args[1])] }
+      : { return: false, blocks: [new Blocks.Say(id, args[0])] },
 };
 
 function bindInput(
   arg: Types.InputValue,
-  varMappings: Map<string, number>,
+  varMappings: Map<string, Variable>,
   sprite: SB3.Target,
   stack: SB3.List,
   stackShift: number,
@@ -27,10 +37,32 @@ function bindInput(
     const foundVar = varMappings.get(arg.name);
     if (foundVar === undefined)
       throw new Error(`Variable ${arg.name} does not exist`);
-    return sprite.addReporter(
-      new Blocks.ItemFromListSimple(stack, stackShift - foundVar),
-      parent
-    );
+    if (foundVar.constant)
+      return { type: 'objectLiteral', value: foundVar.value };
+    else
+      return sprite.addReporter(
+        new Blocks.ItemFromListSimple(stack, stackShift - foundVar.location),
+        parent
+      );
+  }
+}
+
+interface DynamicVariable {
+  name: string;
+  location: number;
+  constant: false;
+}
+interface ConstantVariable {
+  name: string;
+  value: Types.PObject;
+  constant: true;
+}
+type Variable = DynamicVariable | ConstantVariable;
+
+export class Scope {
+  code: Array<Types.Token>;
+  constructor(code: Array<Types.Token>) {
+    this.code = code;
   }
 }
 
@@ -71,7 +103,7 @@ export class Sprite {
           'event_whenflagclicked',
           [],
           [],
-          this.functionsSoFar * 400 + 43
+          this.functionsSoFar * BLOCK_WIDTH + 43
         );
       } else if (sfunction.type === 'functionDef') {
         const broadcastId = stage.addBroadcast(
@@ -87,7 +119,7 @@ export class Sprite {
             ),
           ],
           [],
-          this.functionsSoFar * 400 + 43
+          this.functionsSoFar * BLOCK_WIDTH + 43
         );
         broadcasts.set(
           `${this.parsedClass.name}.${sfunction.name}`,
@@ -100,11 +132,11 @@ export class Sprite {
             `Failed to create head block for function ${sfunction.name}`
           );
         let lastBlock = headBlock;
-        let varMappings: Map<string, number> = new Map();
+        const varMappings: Map<string, Variable> = new Map();
         let stackShift = 0;
         let returnValue: Types.InputValue = {
           type: 'objectLiteral',
-          value: '<<<VOID>>>',
+          value: VOID,
         };
         for (const child of sfunction.codeLines) {
           let currBlock;
@@ -113,11 +145,12 @@ export class Sprite {
             break;
           }
           if (child.type === 'functionCall') {
+            let didCalledFunctionReturnValue: boolean = false;
             const nativeFunction = Object.entries(nativeFunctions).find(
               (n) => n[0] === child.name
             );
             if (nativeFunction) {
-              let nextId = uuidv4();
+              const nextId = uuidv4();
               const newArgs: Array<Types.ParsedInputValue> = child.args.map(
                 (arg) => {
                   return bindInput(
@@ -130,16 +163,14 @@ export class Sprite {
                   );
                 }
               );
-              currBlock = lastBlock.addChild(
-                nativeFunction[1](nextId, newArgs)
-              );
-              sprite.addBlock(lastBlock);
-              lastBlock = currBlock;
-              currBlock = lastBlock.addChild(
-                new Blocks.InsertIntoListSimple(stack, 1, '<<<VOID>>>')
-              );
-              sprite.addBlock(lastBlock);
-              lastBlock = currBlock;
+              const nativeResult = nativeFunction[1](nextId, newArgs);
+              for (const block of nativeResult.blocks) {
+                currBlock = lastBlock.addChild(block);
+                sprite.addBlock(lastBlock);
+                lastBlock = currBlock;
+              }
+              if (nativeResult.return) didCalledFunctionReturnValue = true;
+              else didCalledFunctionReturnValue = false;
             } else {
               const broadcastId = broadcasts.get(child.name);
               if (!broadcastId)
@@ -149,19 +180,68 @@ export class Sprite {
               currBlock = lastBlock.addChild(
                 new Blocks.SendBroadcast(
                   broadcastId as string,
-                  `function__${child.name}`,
-                  child.async
+                  `function__${child.name}`
                 )
               );
+              didCalledFunctionReturnValue = true;
             }
-            varMappings.set('lastRet', stackShift);
-            stackShift++;
+            if (didCalledFunctionReturnValue) {
+              varMappings.set('lastRet', {
+                name: 'lastRet',
+                constant: false,
+                location: stackShift,
+              });
+              stackShift++;
+            }
           } else if (child.type === 'variableDef') {
-            currBlock = lastBlock.addChild(
-              new Blocks.InsertIntoListSimple(stack, 1, child.value)
-            );
-            varMappings.set(child.name, stackShift);
-            stackShift++;
+            if (child.constant) {
+              const referencedVar =
+                child.value.type === 'objectReference'
+                  ? varMappings.get(child.value.name)
+                  : undefined;
+              if (referencedVar && !referencedVar.constant)
+                throw new Error(
+                  'A constant variable cannot be set to a dynamic object'
+                );
+              if (referencedVar && referencedVar.constant)
+                varMappings.set(child.name, {
+                  name: child.name,
+                  value: referencedVar.value,
+                  constant: true,
+                });
+              else if (child.value.type === 'objectLiteral')
+                varMappings.set(child.name, {
+                  name: child.name,
+                  value: child.value.value,
+                  constant: true,
+                });
+              else
+                throw new Error(
+                  `Something went wrong when trying to assign to ${child.name}`
+                );
+            } else {
+              const parentId = uuidv4();
+              const tmpBlock = new Blocks.InsertIntoList(
+                stack,
+                1,
+                bindInput(
+                  child.value,
+                  varMappings,
+                  sprite,
+                  stack,
+                  stackShift,
+                  parentId
+                )
+              );
+              tmpBlock.id = parentId;
+              currBlock = lastBlock.addChild(tmpBlock);
+              varMappings.set(child.name, {
+                name: child.name,
+                location: stackShift,
+                constant: false,
+              });
+              stackShift++;
+            }
           }
           sprite.addBlock(lastBlock);
           if (currBlock) lastBlock = currBlock;

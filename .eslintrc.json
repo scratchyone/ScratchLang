@@ -19,6 +19,7 @@
   },
   "plugins": ["@typescript-eslint", "prettier"],
   "rules": {
-    "prettier/prettier": "error"
+    "prettier/prettier": "error",
+    "quotes": [2, "single", "avoid-escape"]
   }
 }
