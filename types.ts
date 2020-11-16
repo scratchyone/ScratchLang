@@ -37,7 +37,7 @@ export interface Return {
   type: 'return';
   value: InputValue;
 }
-export type InputValue = ObjectLiteral | ObjectReference;
+export type InputValue = ObjectLiteral | ObjectReference | FunctionCall;
 export type PObject = string | number;
 export type RefId = string;
 export type ParsedInputValue = ObjectLiteral | BlockReference;

@@ -15,13 +15,13 @@ variableDef -> ("var" | "const") __ objectName _ "=" _ objectRep {% n => {return
 functionCall -> objectCallableName "(" commaSeparatedObjects:? ")" {% n => {return {type: "functionCall", name: n[0], args: n[2] || []}} %}
 object -> (string | number) {% n => n[0][0]%}
 string -> (dqstring | sqstring | btstring) {% n => n[0][0]%}
-objectName -> [A-Za-z0-9_]:+ {% (n) => n[0].join('') %}
-objectCallableName -> [A-Za-z0-9_.]:+ {% (n) => n[0].join('') %}
+objectName -> [A-Za-z_]:+ {% (n) => n[0].join('') %}
+objectCallableName -> [A-Za-z_.]:+ {% (n) => n[0].join('') %}
 ___ -> [ \n]:* {% n => null %}
 optNl -> "\n":* {% n => null %}
 number -> (decimal | int) {% n => n[0][0]%}
-commaSeparatedObjects -> ___ (objectLiteral | objectReference) ___ ( "," ___ commaSeparatedObjects {% n => n[2]%} ):? {% n => [n[1][0], ...n[3] || [] ]%}
+commaSeparatedObjects -> ___ (objectLiteral | objectReference | functionCall) ___ ( "," ___ commaSeparatedObjects {% n => n[2]%} ):? {% n => [n[1][0], ...n[3] || [] ]%}
 commaSeparatedObjectNames -> ___ objectName ___ ( "," ___ commaSeparatedObjectNames {% n => n[2] %} ):? {% n => [n[1], ...n[3] || [] ]%}
-objectRep -> (objectLiteral | objectReference) {% n => n[0][0] %}
+objectRep -> (objectLiteral | objectReference | functionCall) {% n => n[0][0] %}
 objectLiteral -> object {% n => {return {type: "objectLiteral", value: n[0] } } %}
 objectReference -> objectCallableName {% n => {return {type: "objectReference", name: n[0] } } %}

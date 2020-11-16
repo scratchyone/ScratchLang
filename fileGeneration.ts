@@ -23,6 +23,39 @@ const nativeFunctions: {
       : { return: false, blocks: [new Blocks.Say(id, args[0])] },
 };
 
+function bindFunctionCall(
+  arg: Types.FunctionCall,
+  varMappings: Map<string, Variable>,
+  sprite: SB3.Target,
+  stack: SB3.List,
+  stackShift: number,
+  broadcasts: Map<string, string>,
+  lastBlock: SB3.Block
+): { val: Types.InputValue; shiftBy: number; lastBlock: SB3.Block } {
+  const res = processFunctionCall(
+    arg,
+    varMappings,
+    sprite,
+    stack,
+    stackShift,
+    lastBlock,
+    broadcasts
+  );
+  const currBlock = lastBlock.addChild(res.lastBlock);
+  sprite.addBlock(lastBlock);
+  const varName = uuidv4();
+  varMappings.set(varName, {
+    constant: false,
+    name: varName,
+    location: stackShift + res.shiftBy - 1,
+  });
+  return {
+    val: { type: 'objectReference', name: varName },
+    lastBlock: currBlock,
+    shiftBy: res.shiftBy,
+  };
+}
+
 function bindInput(
   arg: Types.InputValue,
   varMappings: Map<string, Variable>,
@@ -33,7 +66,11 @@ function bindInput(
 ): Types.ParsedInputValue {
   if (arg.type === 'objectLiteral')
     return { type: 'objectLiteral', value: arg.value };
-  else {
+  else if (arg.type === 'functionCall') {
+    throw new Error(
+      "This shouldn't be able to happen, somehow the compiler attempted to bind a function call without creating it first"
+    );
+  } else {
     const foundVar = varMappings.get(arg.name);
     if (foundVar === undefined)
       throw new Error(`Variable ${arg.name} does not exist`);
@@ -64,6 +101,73 @@ export class Scope {
   constructor(code: Array<Types.Token>) {
     this.code = code;
   }
+}
+
+function processFunctionCall(
+  funcCall: Types.FunctionCall,
+  varMappings: Map<string, Variable>,
+  sprite: SB3.Target,
+  stack: SB3.List,
+  stackShift: number,
+  lastBlock: SB3.Block,
+  broadcasts: Map<string, string>
+): { shiftBy: number; lastBlock: SB3.Block } {
+  let currBlock = lastBlock;
+  let didCalledFunctionReturnValue: boolean = false;
+  const nativeFunction = Object.entries(nativeFunctions).find(
+    (n) => n[0] === funcCall.name
+  );
+  if (nativeFunction) {
+    const nextId = uuidv4();
+    const newBinds = [];
+    const newArgs: Array<Types.ParsedInputValue> = [];
+    for (let arg of funcCall.args) {
+      if (arg.type === 'functionCall') {
+        const rebound = bindFunctionCall(
+          arg,
+          varMappings,
+          sprite,
+          stack,
+          stackShift,
+          broadcasts,
+          lastBlock
+        );
+        lastBlock = rebound.lastBlock;
+        stackShift += rebound.shiftBy;
+        arg = rebound.val;
+      }
+      newBinds.push(arg);
+    }
+    for (const arg of newBinds) {
+      const bi = bindInput(arg, varMappings, sprite, stack, stackShift, nextId);
+      newArgs.push(bi);
+    }
+    const nativeResult = nativeFunction[1](nextId, newArgs);
+    for (const block of nativeResult.blocks) {
+      currBlock = lastBlock.addChild(block);
+      sprite.addBlock(lastBlock);
+      lastBlock = currBlock;
+    }
+    if (nativeResult.return) didCalledFunctionReturnValue = true;
+    else didCalledFunctionReturnValue = false;
+  } else {
+    const broadcastId = broadcasts.get(funcCall.name);
+    if (!broadcastId)
+      throw new Error(
+        `Tried to call function ${funcCall.name} but it doesn't exist`
+      );
+    currBlock = lastBlock.addChild(
+      new Blocks.SendBroadcast(
+        broadcastId as string,
+        `function__${funcCall.name}`
+      )
+    );
+    didCalledFunctionReturnValue = true;
+  }
+  if (didCalledFunctionReturnValue) {
+    return { shiftBy: 1, lastBlock: currBlock };
+  }
+  return { shiftBy: 0, lastBlock: currBlock };
 }
 
 export class Sprite {
@@ -145,54 +249,17 @@ export class Sprite {
             break;
           }
           if (child.type === 'functionCall') {
-            let didCalledFunctionReturnValue: boolean = false;
-            const nativeFunction = Object.entries(nativeFunctions).find(
-              (n) => n[0] === child.name
+            const res = processFunctionCall(
+              child,
+              varMappings,
+              sprite,
+              stack,
+              stackShift,
+              lastBlock,
+              broadcasts
             );
-            if (nativeFunction) {
-              const nextId = uuidv4();
-              const newArgs: Array<Types.ParsedInputValue> = child.args.map(
-                (arg) => {
-                  return bindInput(
-                    arg,
-                    varMappings,
-                    sprite,
-                    stack,
-                    stackShift,
-                    nextId
-                  );
-                }
-              );
-              const nativeResult = nativeFunction[1](nextId, newArgs);
-              for (const block of nativeResult.blocks) {
-                currBlock = lastBlock.addChild(block);
-                sprite.addBlock(lastBlock);
-                lastBlock = currBlock;
-              }
-              if (nativeResult.return) didCalledFunctionReturnValue = true;
-              else didCalledFunctionReturnValue = false;
-            } else {
-              const broadcastId = broadcasts.get(child.name);
-              if (!broadcastId)
-                throw new Error(
-                  `Tried to call function ${child.name} but it doesn't exist`
-                );
-              currBlock = lastBlock.addChild(
-                new Blocks.SendBroadcast(
-                  broadcastId as string,
-                  `function__${child.name}`
-                )
-              );
-              didCalledFunctionReturnValue = true;
-            }
-            if (didCalledFunctionReturnValue) {
-              varMappings.set('lastRet', {
-                name: 'lastRet',
-                constant: false,
-                location: stackShift,
-              });
-              stackShift++;
-            }
+            stackShift += res.shiftBy;
+            lastBlock = res.lastBlock;
           } else if (child.type === 'variableDef') {
             if (child.constant) {
               const referencedVar =
@@ -215,24 +282,39 @@ export class Sprite {
                   value: child.value.value,
                   constant: true,
                 });
+              else if (child.value.type === 'functionCall')
+                throw new Error(
+                  "A constant variable cannot be set to a function's return value"
+                );
               else
                 throw new Error(
                   `Something went wrong when trying to assign to ${child.name}`
                 );
             } else {
               const parentId = uuidv4();
-              const tmpBlock = new Blocks.InsertIntoList(
-                stack,
-                1,
-                bindInput(
+              if (child.value.type === 'functionCall') {
+                const rebound = bindFunctionCall(
                   child.value,
                   varMappings,
                   sprite,
                   stack,
                   stackShift,
-                  parentId
-                )
+                  broadcasts,
+                  lastBlock
+                );
+                lastBlock = rebound.lastBlock;
+                stackShift += rebound.shiftBy;
+                child.value = rebound.val;
+              }
+              const bound = bindInput(
+                child.value,
+                varMappings,
+                sprite,
+                stack,
+                stackShift,
+                parentId
               );
+              const tmpBlock = new Blocks.InsertIntoList(stack, 1, bound);
               tmpBlock.id = parentId;
               currBlock = lastBlock.addChild(tmpBlock);
               varMappings.set(child.name, {
@@ -248,18 +330,29 @@ export class Sprite {
         }
         if (sfunction.name !== 'main') {
           const parentId = uuidv4();
-          const tmpBlock = new Blocks.InsertIntoList(
-            stack,
-            1,
-            bindInput(
+          if (returnValue.type === 'functionCall') {
+            const rebound = bindFunctionCall(
               returnValue,
               varMappings,
               sprite,
               stack,
               stackShift,
-              parentId
-            )
+              broadcasts,
+              lastBlock
+            );
+            lastBlock = rebound.lastBlock;
+            stackShift += rebound.shiftBy;
+            returnValue = rebound.val;
+          }
+          const bound = bindInput(
+            returnValue,
+            varMappings,
+            sprite,
+            stack,
+            stackShift,
+            parentId
           );
+          const tmpBlock = new Blocks.InsertIntoList(stack, 1, bound); // TODO FIX TO WORK WITH FUNCTION CALLS
           tmpBlock.id = parentId;
           const currBlock = lastBlock.addChild(tmpBlock);
           sprite.addBlock(lastBlock);
@@ -315,13 +408,13 @@ export class Generator {
         stack
       );
     }
-    console.log(
+    /*console.log(
       util.inspect(pjson.json(), {
         showHidden: false,
         depth: null,
         colors: true,
       })
-    );
+    );*/
     this.data.addFile(
       'project.json',
       Buffer.from(JSON.stringify(pjson.json()), 'utf-8')
