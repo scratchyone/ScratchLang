@@ -352,7 +352,7 @@ export class Sprite {
             stackShift,
             parentId
           );
-          const tmpBlock = new Blocks.InsertIntoList(stack, 1, bound); // TODO FIX TO WORK WITH FUNCTION CALLS
+          const tmpBlock = new Blocks.InsertIntoList(stack, 1, bound);
           tmpBlock.id = parentId;
           const currBlock = lastBlock.addChild(tmpBlock);
           sprite.addBlock(lastBlock);
